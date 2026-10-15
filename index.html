@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quản lý lượt đi qua</title>
+<style>
+:root{font-family:Arial,Helvetica,sans-serif;color:#182230;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0}header{background:#173b67;color:white;padding:22px 16px}
+header h1{margin:0 0 6px;font-size:24px}header p{margin:0;color:#dbeafe}
+main{max-width:1100px;margin:22px auto;padding:0 14px;display:grid;gap:16px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:white;border:1px solid #dce4ee;border-radius:14px;padding:18px;box-shadow:0 4px 14px #1831530a}
+.wide{grid-column:1/-1}h2{font-size:18px;margin:0 0 14px}label{display:block;font-size:14px;font-weight:600;margin:11px 0 6px}
+input,textarea,button{font:inherit}input[type=text],input[type=tel],input[type=search],textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:white}
+textarea{min-height:70px;resize:vertical}.consent{display:flex;gap:9px;align-items:flex-start;font-weight:400;line-height:1.45}
+button{border:0;border-radius:8px;padding:10px 13px;cursor:pointer;font-weight:700;background:#1d5fa7;color:white}
+button.secondary{background:#e8eef6;color:#173b67}button.danger{background:#b42318}button:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{color:#667085;font-size:13px;line-height:1.45}
+#qrBox{min-height:120px;display:flex;align-items:center;justify-content:center;margin:12px 0}#qrBox canvas,#qrBox img{max-width:100%;height:auto}
+#video{width:100%;max-height:280px;background:#111;border-radius:10px;display:none;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e5eaf1;vertical-align:top}th{background:#f8fafc}
+.tablewrap{overflow:auto}.pill{display:inline-block;border-radius:999px;padding:3px 8px;background:#e6f4ea;color:#176b37;font-size:12px}
+.notice{padding:10px 12px;background:#fff7e6;border:1px solid #f3d28b;border-radius:8px;font-size:13px;line-height:1.45}
+#status{margin-top:10px;font-size:14px;min-height:18px}
+@media(max-width:720px){main{grid-template-columns:1fr}.wide{grid-column:auto}header h1{font-size:21px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Quản lý lượt đi qua</h1>
+  <p>Đăng ký có sự đồng ý · QR/thẻ · Lưu và sao lưu dữ liệu</p>
+</header>
+<main>
+  <section class="card">
+    <h2>1. Đăng ký người tham gia</h2>
+    <form id="registerForm">
+      <label for="personName">Họ và tên *</label>
+      <input id="personName" type="text" maxlength="100" required autocomplete="name">
+      <label for="personContact">Thông tin liên hệ (không bắt buộc)</label>
+      <input id="personContact" type="tel" maxlength="80" autocomplete="tel" placeholder="Số điện thoại hoặc email">
+      <label for="personNote">Ghi chú (không bắt buộc)</label>
+      <textarea id="personNote" maxlength="300" placeholder="Chỉ nhập thông tin cần thiết"></textarea>
+      <label class="consent"><input id="personConsent" type="checkbox" required>
+        <span>Tôi xác nhận người này đã được thông báo về việc lưu thông tin và đồng ý đăng ký, sử dụng QR/thẻ để ghi nhận lượt đi qua.</span>
+      </label>
+      <div class="actions"><button type="submit">Đăng ký và tạo QR</button></div>
+    </form>
+    <div id="registerStatus" class="muted" role="status"></div>
+  </section>
+  <section class="card">
+    <h2>2. QR/thẻ đang chọn</h2>
+    <div id="qrDetails" class="muted">Đăng ký một người để tạo QR.</div>
+    <div id="qrBox"></div>
+    <div class="actions">
+      <button id="printQr" class="secondary" disabled>In thẻ</button>
+      <button id="clearQr" class="secondary" disabled>Bỏ chọn</button>
+    </div>
+    <p class="muted">QR chỉ chứa mã định danh ngẫu nhiên, không chứa tên hay thông tin liên hệ.</p>
+  </section>
+  <section class="card">
+    <h2>3. Ghi nhận lượt đi qua</h2>
+    <p class="muted">Quét QR của người đã đăng ký. Cần cho phép sử dụng camera khi Chrome hỏi.</p>
+    <div class="actions">
+      <button id="startScan">Bật camera quét QR</button>
+      <button id="stopScan" class="secondary" disabled>Dừng camera</button>
+    </div>
+    <video id="video" playsinline></video>
+    <label for="manualCode">Hoặc nhập mã QR</label>
+    <input id="manualCode" type="text" placeholder="Dán mã định danh tại đây">
+    <div class="actions"><button id="recordManual" class="secondary">Ghi nhận mã</button></div>
+    <div id="scanStatus" role="status"></div>
+  </section>
+  <section class="card">
+    <h2>4. Sao lưu dữ liệu</h2>
+    <p class="muted">Dữ liệu hiện được lưu trên trình duyệt này. Xuất tệp JSON để sao lưu sang nơi an toàn.</p>
+    <div class="actions">
+      <button id="exportData">Xuất bản sao lưu JSON</button>
+      <button id="importButton" class="secondary">Khôi phục từ JSON</button>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+    </div>
+    <div class="notice" style="margin-top:12px">Không xóa dữ liệu trình duyệt trước khi sao lưu. Tệp sao lưu có thể chứa thông tin cá nhân; chỉ lưu ở nơi được bảo vệ.</div>
+    <div id="backupStatus" class="muted" role="status"></div>
+  </section>
+  <section class="card wide">
+    <h2>5. Danh sách đăng ký và lượt đi qua</h2>
+    <label for="search">Tìm theo tên hoặc mã</label>
+    <input id="search" type="search" placeholder="Nhập từ khóa...">
+    <div class="tablewrap" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Người đăng ký</th><th>Mã</th><th>Lượt đi qua gần nhất</th><th>Tổng lượt</th><th>Thao tác</th></tr></thead>
+        <tbody id="peopleRows"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="muted" style="margin-top:10px">Chưa có người đăng ký.</div>
+  </section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(() => {
+  'use strict';
+  const STORAGE_KEY = 'passageManager.v1';
+  let people = [];
+  let selectedId = null;
+  let stream = null;
+  let scanBusy = false;
+  let lastScanned = '';
+  let lastScanAt = 0;
+
+  const $ = id => document.getElementById(id);
+  function loadData() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"people":[]}');
+      return parsed && Array.isArray(parsed.people) ? parsed.people : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  async function saveData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({version:1, people}));
+    const response = await fetch('/api/people', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({people})
+    });
+    if (!response.ok) throw new Error('Không thể lưu dữ liệu lên máy chủ.');
+    return true;
+  }
+  async function loadSharedData() {
+    const response = await fetch('/api/people');
+    if (!response.ok) throw new Error('Không thể tải dữ liệu từ máy chủ.');
+    const data = await response.json();
+    if (!data || !Array.isArray(data.people)) throw new Error('Dữ liệu máy chủ không hợp lệ.');
+    people = data.people;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({version:1, people}));
+  }
+  function makeId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'P-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
+  }
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+  function fmtDate(value) {
+    if (!value) return 'Chưa có';
+    return new Date(value).toLocaleString('vi-VN');
+  }
+  function selectedPerson() {
+    return people.find(p => p.id === selectedId);
+  }
+  function render() {
+    const query = $('search').value.trim().toLocaleLowerCase('vi-VN');
+    const filtered = people.filter(p =>
+      p.name.toLocaleLowerCase('vi-VN').includes(query) || p.id.toLowerCase().includes(query)
+    );
+    $('peopleRows').innerHTML = filtered.map(p => {
+      const latest = p.visits.length ? p.visits[p.visits.length - 1].time : '';
+      return `<tr>
+        <td><strong>${escapeHtml(p.name)}</strong><br><span class="muted">${escapeHtml(p.contact || '')}</span></td>
+        <td><code>${escapeHtml(p.id)}</code></td>
+        <td>${fmtDate(latest)}</td>
+        <td>${p.visits.length}</td>
+        <td><div class="actions">
+          <button class="secondary" data-action="select" data-id="${escapeHtml(p.id)}">Xem QR</button>
+          <button class="secondary" data-action="record" data-id="${escapeHtml(p.id)}">Ghi lượt</button>
+          <button class="danger" data-action="delete" data-id="${escapeHtml(p.id)}">Xóa</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+    $('emptyState').textContent = filtered.length ? '' : (people.length ? 'Không tìm thấy kết quả.' : 'Chưa có người đăng ký.');
+    renderSelected();
+  }
+  function renderSelected() {
+    const p = selectedPerson();
+    $('qrBox').innerHTML = '';
+    $('printQr').disabled = !p;
+    $('clearQr').disabled = !p;
+    if (!p) {
+      $('qrDetails').textContent = 'Đăng ký một người để tạo QR.';
+      return;
+    }
+    $('qrDetails').innerHTML = `<strong>${escapeHtml(p.name)}</strong><br><span class="muted">Mã: ${escapeHtml(p.id)}</span>`;
+    if (window.QRCode) {
+      new QRCode($('qrBox'), {text:p.id, width:180, height:180, correctLevel:QRCode.CorrectLevel.M});
+    } else {
+      $('qrBox').textContent = 'Không tải được thư viện tạo QR. Kiểm tra kết nối mạng rồi tải lại trang.';
+    }
+  }
+  function setStatus(id, message, isError=false) {
+    $(id).textContent = message;
+    $(id).style.color = isError ? '#b42318' : '#176b37';
+  }
+  async function recordVisit(id) {
+    const p = people.find(person => person.id === id);
+    if (!p) {
+      setStatus('scanStatus', 'Không tìm thấy mã này trong danh sách đăng ký.', true);
+      return;
+    }
+    p.visits.push({time:new Date().toISOString()});
+    try { await saveData(); } catch (_) {
+      p.visits.pop();
+      setStatus('scanStatus', 'Không thể lưu dữ liệu lên máy chủ. Hãy thử lại.', true);
+      return;
+    }
+    render();
+    setStatus('scanStatus', 'Đã ghi nhận lượt đi qua của ' + p.name + '.');
+  }
+
+  $('registerForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!$('personConsent').checked) {
+      setStatus('registerStatus', 'Cần xác nhận sự đồng ý trước khi đăng ký.', true);
+      return;
+    }
+    const name = $('personName').value.trim();
+    if (!name) return;
+    const person = {
+      id: makeId(),
+      name,
+      contact: $('personContact').value.trim(),
+      note: $('personNote').value.trim(),
+      consent: true,
+      registeredAt: new Date().toISOString(),
+      visits: []
+    };
+    people.push(person);
+    try { await saveData(); } catch (_) {
+      people.pop();
+      setStatus('registerStatus', 'Không thể lưu dữ liệu lên máy chủ. Hãy thử lại.', true);
+      return;
+    }
+    selectedId = person.id;
+    $('registerForm').reset();
+    render();
+    setStatus('registerStatus', 'Đã đăng ký và tạo mã QR.');
+  });
+
+  $('peopleRows').addEventListener('click', async event => {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+    const id = button.dataset.id;
+    if (button.dataset.action === 'select') {
+      selectedId = id;
+      renderSelected();
+    } else if (button.dataset.action === 'record') {
+      recordVisit(id);
+    } else if (button.dataset.action === 'delete') {
+      const p = people.find(person => person.id === id);
+      if (!p || !confirm('Xóa thông tin đăng ký và lịch sử lượt đi qua của ' + p.name + '?')) return;
+      const old = people;
+      people = people.filter(person => person.id !== id);
+      try { await saveData(); } catch (_) {
+        people = old;
+        setStatus('backupStatus', 'Không thể lưu thay đổi lên máy chủ.', true);
+        render();
+        return;
+      }
+      if (selectedId === id) selectedId = null;
+      render();
+    }
+  });
+  $('search').addEventListener('input', render);
+  $('clearQr').addEventListener('click', () => { selectedId = null; renderSelected(); });
+  $('printQr').addEventListener('click', () => {
+    const p = selectedPerson();
+    if (!p) return;
+    const qr = $('qrBox').querySelector('canvas') || $('qrBox').querySelector('img');
+    if (!qr) return;
+    const image = qr.tagName === 'CANVAS' ? qr.toDataURL('image/png') : qr.src;
+    const w = window.open('', '_blank');
+    if (!w) {
+      setStatus('registerStatus', 'Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên để in thẻ.', true);
+      return;
+    }
+    w.document.write(`<!doctype html><html lang="vi"><meta charset="utf-8"><title>Thẻ QR</title>
+      <style>body{font-family:Arial;text-align:center;padding:24px}.card{border:1px solid #aaa;border-radius:12px;padding:20px;display:inline-block}img{width:220px;height:220px}p{overflow-wrap:anywhere}</style>
+      <div class="card"><h2>${escapeHtml(p.name)}</h2><img src="${image}" alt="QR"><p>Mã: ${escapeHtml(p.id)}</p><p>Quản lý lượt đi qua</p></div>
+      <script>window.onload=()=>window.print();<\/script></html>`);
+    w.document.close();
+  });
+
+  $('recordManual').addEventListener('click', async () => {
+    const code = $('manualCode').value.trim();
+    if (!code) {
+      setStatus('scanStatus', 'Nhập mã QR trước.', true);
+      return;
+    }
+    await recordVisit(code);
+    $('manualCode').value = '';
+  });
+  $('exportData').addEventListener('click', async () => {
+    try { await loadSharedData(); } catch (_) {
+      setStatus('backupStatus', 'Không tải được dữ liệu từ máy chủ nên chưa thể sao lưu.', true);
+      return;
+    }
+    const blob = new Blob([JSON.stringify({version:1, exportedAt:new Date().toISOString(), people}, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sao-luu-quan-ly-nguoi-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus('backupStatus', 'Đã tạo tệp sao lưu JSON.');
+  });
+  $('importButton').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!parsed || !Array.isArray(parsed.people) || !parsed.people.every(p =>
+        p && typeof p.id === 'string' && typeof p.name === 'string' && Array.isArray(p.visits)
+      )) throw new Error('invalid');
+      if (!confirm('Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại. Bạn đã sao lưu dữ liệu hiện tại chưa?')) return;
+      const previous = people;
+      people = parsed.people;
+      try { await saveData(); } catch (e) { people = previous; throw e; }
+      selectedId = null;
+      render();
+      setStatus('backupStatus', 'Đã khôi phục dữ liệu từ tệp JSON.');
+    } catch (_) {
+      setStatus('backupStatus', 'Tệp JSON không hợp lệ hoặc không thể đọc.', true);
+    } finally {
+      event.target.value = '';
+    }
+  });
+
+  async function startScanner() {
+    if (!('BarcodeDetector' in window)) {
+      setStatus('scanStatus', 'Chrome này chưa hỗ trợ quét QR bằng BarcodeDetector. Có thể nhập mã QR thủ công.', true);
+      return;
+    }
+    try {
+      const detector = new BarcodeDetector({formats:['qr_code']});
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}, audio:false});
+      $('video').srcObject = stream;
+      $('video').style.display = 'block';
+      await $('video').play();
+      $('startScan').disabled = true;
+      $('stopScan').disabled = false;
+      scanBusy = false;
+      setStatus('scanStatus', 'Đang quét QR…');
+      const scanFrame = async () => {
+        if (!stream) return;
+        if (!scanBusy) {
+          scanBusy = true;
+          try {
+            const codes = await detector.detect($('video'));
+            if (codes.length && codes[0].rawValue) {
+              const code = codes[0].rawValue.trim();
+              const now = Date.now();
+              if (code !== lastScanned || now - lastScanAt > 2500) {
+                lastScanned = code;
+                lastScanAt = now;
+                await recordVisit(code);
+              }
+            }
+          } catch (_) {}
+          scanBusy = false;
+        }
+        if (stream) requestAnimationFrame(scanFrame);
+      };
+      requestAnimationFrame(scanFrame);
+    } catch (_) {
+      stopScanner();
+      setStatus('scanStatus', 'Không mở được camera. Hãy cấp quyền camera và mở trang qua localhost hoặc HTTPS.', true);
+    }
+  }
+  function stopScanner() {
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    $('video').pause();
+    $('video').srcObject = null;
+    $('video').style.display = 'none';
+    $('startScan').disabled = false;
+    $('stopScan').disabled = true;
+  }
+  $('startScan').addEventListener('click', startScanner);
+  $('stopScan').addEventListener('click', stopScanner);
+  window.addEventListener('beforeunload', stopScanner);
+  $('peopleRows').innerHTML = '';
+  $('emptyState').textContent = 'Đang tải dữ liệu chung...';
+  loadSharedData().then(() => {
+    render();
+    setStatus('backupStatus', 'Đã kết nối cơ sở dữ liệu chung.');
+  }).catch(() => {
+    people = [];
+    render();
+    setStatus('backupStatus', 'Không kết nối được máy chủ. Kiểm tra kết nối rồi tải lại trang.', true);
+    $('registerStatus').textContent = 'Dữ liệu chỉ được lưu khi máy chủ hoạt động.';
+  });
+})();
+</script>
+</body>
+</html>

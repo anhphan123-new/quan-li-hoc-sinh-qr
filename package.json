@@ -1,0 +1,14 @@
+{
+  "name": "quan-ly-nguoi-di-qua",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ứng dụng đăng ký QR và ghi nhận lượt đi qua với dữ liệu dùng chung",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2"
+  }
+}
